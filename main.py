@@ -3,7 +3,7 @@ import pyxel
 from enum import Enum, auto, IntEnum
 
 SCREEN_WIDTH = 128
-SCREEN_HEIGHT = 128
+SCREEN_HEIGHT = 64
 
 MAX_WIN = 3
 
@@ -20,10 +20,10 @@ class Result(Enum):
     DRAW = auto()
 
 
-class Status(Enum):
-    WAITING = auto()
-    BEFORE_GAME = auto()
-    AFTER_GAME = auto()
+class Winner(Enum):
+    NOBODY = auto()
+    PLAYER = auto()
+    CPU = auto()
 
 
 class Counter:
@@ -39,14 +39,19 @@ class Counter:
         else:
             return self
 
-    def is_game_over(self):
-        if self.__cnt_player >= 3 or self.__cnt_cpu >= 3:
-            return True
+    def get_winner(self):
+        if self.__cnt_player >= 3:
+            return Winner.PLAYER
+        elif self.__cnt_cpu >= 3:
+            return Winner.CPU
+        else:
+            return Winner.NOBODY
 
     def reset_if_needed(self):
         if self.__cnt_player >= 3 or self.__cnt_cpu >= 3:
             return Counter(0, 0)
-        return self
+        else:
+            return self
 
     def get_player_score(self):
         return self.__cnt_player
@@ -99,9 +104,18 @@ class WaitingStatus(IStatus):
             self.__hand = Hand.SCISSORS
 
     def draw(self):
-        pyxel.text(40, 40, "1 : Rock", 7)
-        pyxel.text(40, 50, "2 : Paper", 7)
-        pyxel.text(40, 60, "3 : Scissors", 7)
+        pyxel.text(31, 15, "Select your hand", 10)
+        # Rock
+        pyxel.blt(20, 25, 0, 0, 0, 16, 16, colkey=13)
+        pyxel.text(27, 42, "1", 7)
+
+        # Paper
+        pyxel.blt(55, 25, 0, 32, 0, 16, 16, colkey=13)
+        pyxel.text(62, 42, "2", 7)
+
+        # Scissors
+        pyxel.blt(90, 25, 0, 16, 0, 16, 16, colkey=13)
+        pyxel.text(97, 42, "3", 7)
 
 
 class BeforeGameStatus(IStatus):
@@ -149,10 +163,36 @@ class AfterGameStatus(IStatus):
             self.__is_complete = True
 
     def draw(self):
-        pyxel.text(40, 40, f"YOU : {self.__hand}", 7)
-        pyxel.text(40, 50, f"CPU : {self.__cpu_hand}", 7)
-        pyxel.text(40, 60, f"{self.__result}", 7)
-        text_shadow(40, 100, "PRESS N : NEXT GAME", 7, 1)
+        # Player's hand
+        if self.__hand == Hand.ROCK:
+            pyxel.blt(28, 25, 0, 0, 0, 16, 16, colkey=13)
+        elif self.__hand == Hand.SCISSORS:
+            pyxel.blt(28, 25, 0, 16, 0, 16, 16, colkey=13)
+        elif self.__hand == Hand.PAPER:
+            pyxel.blt(28, 25, 0, 32, 0, 16, 16, colkey=13)
+
+        # CPU's hand
+        if self.__cpu_hand == Hand.ROCK:
+            pyxel.blt(85, 25, 0, 0, 0, 16, 16, colkey=13)
+        elif self.__cpu_hand == Hand.SCISSORS:
+            pyxel.blt(85, 25, 0, 16, 0, 16, 16, colkey=13)
+        elif self.__cpu_hand == Hand.PAPER:
+            pyxel.blt(85, 25, 0, 32, 0, 16, 16, colkey=13)
+
+        # Result
+        if self.__result == Result.WIN:
+            pyxel.text(51, 20, "YOU WIN", 3)
+        elif self.__result == Result.LOSE:
+            pyxel.text(49, 20, "YOU LOSE", 8)
+        elif self.__result == Result.DRAW:
+            pyxel.text(56, 20, "DRAW", 15)
+
+        # When the game is over
+        if self.__counter.get_winner() == Winner.PLAYER:
+            pyxel.text(33, 45, "Congratulations!", pyxel.frame_count % 16)
+        elif self.__counter.get_winner() == Winner.CPU:
+            pyxel.text(55, 45, "Oh...", 3)
+        text_shadow(50, 55, "N : NEXT GAME", 7, 1)
 
     def __open_hands(self):
 
@@ -173,6 +213,7 @@ class AfterGameStatus(IStatus):
             self.__result = Result.DRAW
         print(f"result : {self.__result}")
 
+
 def text_shadow(x, y, s, color, shadow_color):
     pyxel.text(x, y, s, shadow_color)
     pyxel.text(x + 1, y, s, color)
@@ -181,13 +222,13 @@ def text_shadow(x, y, s, color, shadow_color):
 class App:
     def __init__(self):
         self.st = WaitingStatus(Counter(0, 0))
-        pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, caption="Rock Paper Scissors")
-        pyxel.mouse(True)
+        pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, caption="Rock Paper Scissors",
+                   scale=5, quit_key=pyxel.KEY_Q)
+        pyxel.mouse(False)
+        pyxel.load("assets/resource.pyxres")
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        if pyxel.btnp(pyxel.KEY_Q):
-            pyxel.quit()
         self.st.update(self.st)
         next_st = self.st.next_state()
         if next_st is not None:
@@ -197,14 +238,13 @@ class App:
         # Clear display to black
         pyxel.cls(0)
         # Message for quit
-        text_shadow(10, 10, "Quit : Press Q", 7, 1)
+        text_shadow(5, 55, "Q : QUIT", 7, 1)
         # Display counter
         cnt = self.st.get_counter()
-        text_shadow(10, 20, f"YOU WIN : {cnt.get_player_score()}    CPU WIN : {cnt.get_cpu_score()}", 7,
-                         1)
+        text_shadow(12, 5, f"YOU WIN : {cnt.get_player_score()}    CPU WIN : {cnt.get_cpu_score()}", 7,
+                    1)
 
         self.st.draw()
-
 
 
 if __name__ == '__main__':
