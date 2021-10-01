@@ -1,4 +1,6 @@
 import random
+import time
+
 import pyxel
 from enum import Enum, auto, IntEnum
 
@@ -28,36 +30,36 @@ class Winner(Enum):
 
 class Counter:
     def __init__(self, cnt_you, cnt_cpu):
-        self.__cnt_player = cnt_you
-        self.__cnt_cpu = cnt_cpu
+        self.__player_win = cnt_you
+        self.__cpu_win = cnt_cpu
 
     def up(self, result):
         if result == Result.WIN:
-            return Counter(self.__cnt_player + 1, self.__cnt_cpu)
+            return Counter(self.__player_win + 1, self.__cpu_win)
         elif result == Result.LOSE:
-            return Counter(self.__cnt_player, self.__cnt_cpu + 1)
+            return Counter(self.__player_win, self.__cpu_win + 1)
         else:
             return self
 
     def get_winner(self):
-        if self.__cnt_player >= 3:
+        if self.__player_win >= MAX_WIN:
             return Winner.PLAYER
-        elif self.__cnt_cpu >= 3:
+        elif self.__cpu_win >= MAX_WIN:
             return Winner.CPU
         else:
             return Winner.NOBODY
 
     def reset_if_needed(self):
-        if self.__cnt_player >= 3 or self.__cnt_cpu >= 3:
+        if self.__player_win >= MAX_WIN or self.__cpu_win >= MAX_WIN:
             return Counter(0, 0)
         else:
             return self
 
     def get_player_score(self):
-        return self.__cnt_player
+        return self.__player_win
 
     def get_cpu_score(self):
-        return self.__cnt_cpu
+        return self.__cpu_win
 
 
 class IStatus:
@@ -91,20 +93,17 @@ class WaitingStatus(IStatus):
 
     def update(self, st):
         if pyxel.btnp(pyxel.KEY_1):
-            print("waiting status press 1")
             self.__is_complete = True
             self.__hand = Hand.ROCK
         elif pyxel.btnp(pyxel.KEY_2):
-            print("waiting status press 2")
             self.__is_complete = True
             self.__hand = Hand.PAPER
         elif pyxel.btnp(pyxel.KEY_3):
-            print("waiting status press 3")
             self.__is_complete = True
             self.__hand = Hand.SCISSORS
 
     def draw(self):
-        pyxel.text(31, 15, "Select your hand", 10)
+        pyxel.text(31, 15, "Select your hand", 6)
         # Rock
         pyxel.blt(20, 25, 0, 0, 0, 16, 16, colkey=13)
         pyxel.text(27, 42, "1", 7)
@@ -123,6 +122,9 @@ class BeforeGameStatus(IStatus):
         self.__hand = hand
         self.__is_complete = False
         self.__counter = counter
+        self.__x = 0
+        self.__open_time = time.monotonic()
+        self.__animation_end_time = None
 
     def get_counter(self):
         return self.__counter
@@ -133,12 +135,23 @@ class BeforeGameStatus(IStatus):
         return None
 
     def update(self, st):
-        if pyxel.btnp(pyxel.KEY_1):
-            print("before status press 1")
-            self.__is_complete = True
+        pass
 
     def draw(self):
-        pyxel.text(40, 40, "TODO", 7)
+        pyxel.blt(0, 17, 1, self.__x, 0, 128, 32, colkey=0)
+        # Delay for the animation start
+        if time.monotonic() - self.__open_time < 0.8:
+            return
+        # Scroll image
+        if self.__x < 128:
+            self.__x += 4
+        else:
+            # Animation end
+            if self.__animation_end_time is None:
+                self.__animation_end_time = time.monotonic()
+        # Waiting time for moving on the next state
+        if self.__animation_end_time is not None and time.monotonic() - self.__animation_end_time > 0.8:
+            self.__is_complete = True
 
 
 class AfterGameStatus(IStatus):
@@ -192,11 +205,12 @@ class AfterGameStatus(IStatus):
             pyxel.text(33, 45, "Congratulations!", pyxel.frame_count % 16)
         elif self.__counter.get_winner() == Winner.CPU:
             pyxel.text(55, 45, "Oh...", 3)
-        text_shadow(50, 55, "N : NEXT GAME", 7, 1)
+        if self.__counter.get_winner() == Winner.NOBODY:
+            text_shadow(50, 55, "N : NEXT GAME", 7, 1)
+        else:
+            text_shadow(50, 55, "N : NEW GAME", 7, 1)
 
     def __open_hands(self):
-
-        print(f"your hand : {self.__hand}, cpu hand : {self.__cpu_hand}")
         if self.__hand == Hand.ROCK and self.__cpu_hand == Hand.PAPER:
             self.__result = Result.LOSE
         elif self.__hand == Hand.ROCK and self.__cpu_hand == Hand.SCISSORS:
@@ -211,7 +225,7 @@ class AfterGameStatus(IStatus):
             self.__result = Result.WIN
         else:
             self.__result = Result.DRAW
-        print(f"result : {self.__result}")
+        print(f"your hand : {self.__hand}, cpu hand : {self.__cpu_hand}, result : {self.__result}")
 
 
 def text_shadow(x, y, s, color, shadow_color):
@@ -226,6 +240,7 @@ class App:
                    scale=5, quit_key=pyxel.KEY_Q)
         pyxel.mouse(False)
         pyxel.load("assets/resource.pyxres")
+        pyxel.image(1).load(0, 0, "assets/rock_paper_scissors.png")
         pyxel.run(self.update, self.draw)
 
     def update(self):
